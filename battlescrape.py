@@ -280,7 +280,7 @@ def get_board_string(game_id, turn):
             display_name = name if all(other["Name"] != name or other["ID"] == snake["ID"] for other in snakes) else f"{name}/{snake['ID'][-6:]}"
             # If the snake has a shout for this turn, display it, otherwise omit.
             shout = f"\"{snake['Shout']}\"" if snake['Shout'] else ""
-            board_string = concat(board_string, f" [{snake['Char'].upper()}] {display_name} ({snake['Health']}) <{len(snake['Body'])}> {shout}", end = "")
+            board_string = concat(board_string, f" {snake['Char'].upper()}: {display_name} ({snake['Health']}) <{len(snake['Body'])}> {shout}", end = "")
         
         board_string = concat(board_string, "")
     
