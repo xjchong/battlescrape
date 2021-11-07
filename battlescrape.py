@@ -5,47 +5,13 @@ import re
 import urllib.request
 
 
-"""
-Setup command line arguments.
-"""
-arg_parser = argparse.ArgumentParser(description="Scrapes frame data from a battlesnake game url. Supports copying output to the clipboard, and formatting the output in various styles. Requires pyperclip to be installed.")
-arg_parser.add_argument(
-    "game_url",
-    help="url for the game, of the format: https://play.battlesnake.com/g/<game_id>/"
-)
-arg_parser.add_argument(
-    "turn",
-    help="which turn of the game to find a frame for"
-)
-arg_parser.add_argument(
-    "-d", "--display",
-    dest="display_option",
-    default="board",
-    choices=["board", "frame", "all", "none"],
-    help="which information to display"
-)
-arg_parser.add_argument(
-    "-c", "--copy",
-    dest="copy_option",
-    default="frame",
-    choices=["frame", "board", "all", "none"],
-    help="copy output to clipboard"
-)
-arg_parser.add_argument(
-    "-f", "--format", 
-    dest="format_option",
-    default="none",
-    choices=["none", "java", "python"],
-    help="format for the board"
-)
-args = arg_parser.parse_args()
-
-def get_frame_string(frame_json):
+def get_frame_string(game_id, turn):
     """
     Example:
         frame_json: { Turn, [Snakes], [Food], [Hazards] }
         -> frame_json in escaped string representation
     """
+    frame_json = scrape_frame(game_id, turn)
     frame_string = json.dumps(frame_json)
     frame_string_escaped = re.sub(r'([\"])', r'\\\1', frame_string)
 
@@ -185,7 +151,7 @@ def concat(string, added_string, end="\n"):
     return string + added_string + end
 
 
-def get_board_string(game_id, turn):
+def get_board_string(game_id, turn, format_option="none"):
     """
     Output:
         https://board.battlesnake.com/?engine=https%3A//engine.battlesnake.com&game=12345-abcde&turn=5
@@ -245,17 +211,17 @@ def get_board_string(game_id, turn):
     # Set the format for the board.
     comment_frame_start, comment_frame_edge, comment_frame_end = "", "", ""
 
-    if args.format_option == "java":
-        comment_frame_start = "\n/**"
+    if format_option == "java":
+        comment_frame_start = "/**\n"
         comment_frame_edge = " * "
-        comment_frame_end = " */\n"
-    elif args.format_option == "python":
-        comment_frame_start = "\n\"\"\""
+        comment_frame_end = "\n */"
+    elif format_option == "python":
+        comment_frame_start = "\"\"\"\n"
         comment_frame_edge = ""
-        comment_frame_end = "\"\"\"\n"
+        comment_frame_end = "\n\"\"\""
 
     # Start a comment frame.
-    board_string = concat(board_string, comment_frame_start)
+    board_string = concat(board_string, comment_frame_start, end="")
 
     # Add the url of the game as a header.
     board_string = concat(board_string, f"{comment_frame_edge}https://board.battlesnake.com/?engine=https%3A//engine.battlesnake.com&game={game_id}&turn={turn}")
@@ -282,7 +248,9 @@ def get_board_string(game_id, turn):
             shout = f"\"{snake['Shout']}\"" if snake['Shout'] else ""
             board_string = concat(board_string, f" {snake['Char'].upper()}: {display_name} ({snake['Health']}) <{len(snake['Body'])}> {shout}", end = "")
         
-        board_string = concat(board_string, "")
+        if row < height - 1:
+            # Add newline at the end of the row, unless it is the last row.
+            board_string = concat(board_string, "")
     
     # Finish the comment frame.
     board_string = concat(board_string, comment_frame_end, end="")
@@ -291,19 +259,52 @@ def get_board_string(game_id, turn):
 
 
 def main():
-    game_id = args.game_url[31:-1]
-    frame = scrape_frame(game_id, args.turn)
-    board_string = get_board_string(game_id, args.turn)
-    frame_string = get_frame_string(frame)
+    """
+    Setup command line arguments.
+    """
+    arg_parser = argparse.ArgumentParser(description="Scrapes frame data from a battlesnake game url. Supports copying output to the clipboard, and formatting the output in various styles. Requires pyperclip to be installed.")
+    arg_parser.add_argument(
+        "game_url",
+        help="url for the game, of the format: https://play.battlesnake.com/g/<game_id>/"
+    )
+    arg_parser.add_argument(
+        "turn",
+        help="which turn of the game to find a frame for"
+    )
+    arg_parser.add_argument(
+        "-d", "--display",
+        dest="display_option",
+        default="board",
+        choices=["board", "frame", "all", "none"],
+        help="which information to display"
+    )
+    arg_parser.add_argument(
+        "-c", "--copy",
+        dest="copy_option",
+        default="frame",
+        choices=["frame", "board", "all", "none"],
+        help="copy output to clipboard"
+    )
+    arg_parser.add_argument(
+        "-f", "--format", 
+        dest="format_option",
+        default="none",
+        choices=["none", "java", "python"],
+        help="format for the board"
+    )
+    args = arg_parser.parse_args()
 
+    game_id = args.game_url[31:-1]
+    board_string = get_board_string(game_id, args.turn, args.format_option)
+    frame_string = get_frame_string(game_id, args.turn)
 
     # Print out the requested information.
     if args.display_option == "board":
-        print(board_string)
+        print(f"\n{board_string}\n")
     elif args.display_option == "frame":
         print("\n" + frame_string, end="\n\n")
     elif args.display_option == "all":
-        print(board_string)
+        print(f"\n{board_string}\n")
         print(frame_string, end="\n\n")
 
     # Copy the requested information to the clipboard.
@@ -314,7 +315,7 @@ def main():
         pyperclip.copy(frame_string)
         print("Frame copied to clipboard!")
     elif args.copy_option == "all":
-        pyperclip.copy(board_string + "\n" + frame_string)
+        pyperclip.copy(board_string + "\n\n" + frame_string)
         print("Board and frame copied to clipboard!")
 
 
